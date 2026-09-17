@@ -5,8 +5,11 @@ use windows::Win32::UI::Input::KeyboardAndMouse::{
 };
 
 pub(super) fn character(vk: u32) -> Option<char> {
-    // 保持原有键码范围：主键盘数字、OEM 标点和空格。
-    if !matches!(vk, 0x30..=0x39 | 0xBA..=0xC0 | 0xDB..=0xDE | 0x20) {
+    // 保持原有键码范围：主键盘数字、小键盘数字与运算符（VK_NUMPAD0–VK_DIVIDE）、OEM 标点和空格。
+    // 小键盘不算进来的话 resolve 不会被调用、KeyEvent.character 是 None，TSF 侧 would_eat
+    // 判它不归输入法管直接放行：V 模式（表达式模式）里敲小键盘数字 / 运算符，键跑进应用、
+    // 缓冲区里那个 v 还留着。
+    if !matches!(vk, 0x30..=0x39 | 0x60..=0x6F | 0xBA..=0xC0 | 0xDB..=0xDE | 0x20) {
         return None;
     }
     let mut state = [0; 256];
@@ -30,10 +33,10 @@ fn resolve(vk: u32, state: &[u8; 256], layout: HKL) -> Option<char> {
 mod tests {
     use super::*;
     use windows::Win32::UI::Input::KeyboardAndMouse::{
-        KLF_NOTELLSHELL, LoadKeyboardLayoutW, VK_SHIFT,
+        KLF_NOTELLSHELL, LoadKeyboardLayoutW, VK_NUMLOCK, VK_SHIFT,
     };
     use windows::core::w;
-
+    
     #[test]
     fn punctuation_and_digits_follow_layout() {
         // 不加 KLF_ACTIVATE，不切换用户正在使用的布局。
@@ -50,7 +53,35 @@ mod tests {
         assert_eq!(resolve(0x32, &state, us), Some('@'));
         assert_eq!(resolve(0x32, &state, de), Some('"'));
     }
-
+    
+    /// 小键盘数字与运算符也要能解出字符：V 模式（表达式模式）里敲小键盘才会进缓冲区。
+    /// 关掉 NumLock 时系统上报的 vk 是导航键（VK_INSERT / VK_END…），到不了这里。
+    #[test]
+    fn keypad_digits_and_operators_resolve() {
+        let us = unsafe { LoadKeyboardLayoutW(w!("00000409"), KLF_NOTELLSHELL) }.unwrap();
+        let mut state = [0; 256];
+        state[VK_NUMLOCK.0 as usize] = 0x01;
+        for (vk, expected) in [
+            (0x60, '0'),
+            (0x61, '1'),
+            (0x62, '2'),
+            (0x63, '3'),
+            (0x64, '4'),
+            (0x65, '5'),
+            (0x66, '6'),
+            (0x67, '7'),
+            (0x68, '8'),
+            (0x69, '9'),
+            (0x6A, '*'),
+            (0x6B, '+'),
+            (0x6D, '-'),
+            (0x6E, '.'),
+            (0x6F, '/'),
+        ] {
+            assert_eq!(resolve(vk, &state, us), Some(expected), "vk={vk:#x}");
+        }
+    }
+    
     #[test]
     fn dead_key_lookup_does_not_change_next_character() {
         let intl = unsafe { LoadKeyboardLayoutW(w!("00020409"), KLF_NOTELLSHELL) }.unwrap();
@@ -71,14 +102,15 @@ mod tests {
         assert_eq!(count, 2);
         assert_eq!(result, None);
     }
-
+    
     #[test]
     fn other_keys_are_not_resolved() {
-        for vk in [0x41, 0x60, 0x0D, 0x70] {
+        // 0x60 已在小键盘范围内，换成同样不该产生字符的 F1 / 回车 / Caps Lock。
+        for vk in [0x41, 0x70, 0x0D, 0x14] {
             assert_eq!(character(vk), None);
         }
     }
-
+    
     #[test]
     fn event_reads_thread_layout_and_keyboard_state() {
         use crate::com::key::event::to_key_event;
@@ -89,7 +121,7 @@ mod tests {
         };
         use windows::Win32::UI::TextServices::ITfKeyEventSink;
         use windows::core::ComObject;
-
+        
         let original_layout = unsafe { GetKeyboardLayout(0) };
         let mut original_state = [0; 256];
         unsafe { GetKeyboardState(&mut original_state) }.unwrap();
