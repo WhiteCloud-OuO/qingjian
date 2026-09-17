@@ -11,7 +11,7 @@ pub(crate) const LANGUAGES: [(&str, &str); 4] = [
     ("英语", "en"),
     ("日语", "ja"),
     ("西班牙语", "es"),
-    ("不进行翻译", "off"),
+    ("不显示译文", "off"),
 ];
 
 /// 双拼方案：界面名 + 配置写法（空串为全拼）。
@@ -40,8 +40,8 @@ pub(crate) fn view(settings: &Settings, context: &mut ViewContext<Settings>) -> 
     let english_off = !settings.config.apps.english_candidates_off.is_empty();
     let rows = [
         field(
-            "候选项翻译语言",
-            "候选词右侧显示对应语言的译词。",
+            "学习语言",
+            "候选词右侧显示哪种语言的译词，只列出装了释义表的语言；「不显示译文」同时关掉生词标记与释义兜底。",
             string_combo(
                 &LANGUAGES,
                 &g.learning_language,
