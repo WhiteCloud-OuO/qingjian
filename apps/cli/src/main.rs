@@ -34,7 +34,7 @@ fn main() {
     }
 }
 
-fn run() ->Result<(), CliError>{
+fn run() -> Result<(), CliError> {
     dotenvy::dotenv().ok();
     let args = Args::parse();
     let _log_guard = logging::init()?;

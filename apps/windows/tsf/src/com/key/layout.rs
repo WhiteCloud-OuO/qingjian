@@ -36,7 +36,7 @@ mod tests {
         KLF_NOTELLSHELL, LoadKeyboardLayoutW, VK_NUMLOCK, VK_SHIFT,
     };
     use windows::core::w;
-    
+
     #[test]
     fn punctuation_and_digits_follow_layout() {
         // 不加 KLF_ACTIVATE，不切换用户正在使用的布局。
@@ -53,7 +53,7 @@ mod tests {
         assert_eq!(resolve(0x32, &state, us), Some('@'));
         assert_eq!(resolve(0x32, &state, de), Some('"'));
     }
-    
+
     /// 小键盘数字与运算符也要能解出字符：V 模式（表达式模式）里敲小键盘才会进缓冲区。
     /// 关掉 NumLock 时系统上报的 vk 是导航键（VK_INSERT / VK_END…），到不了这里。
     #[test]
@@ -81,7 +81,7 @@ mod tests {
             assert_eq!(resolve(vk, &state, us), Some(expected), "vk={vk:#x}");
         }
     }
-    
+
     #[test]
     fn dead_key_lookup_does_not_change_next_character() {
         let intl = unsafe { LoadKeyboardLayoutW(w!("00020409"), KLF_NOTELLSHELL) }.unwrap();
@@ -102,7 +102,7 @@ mod tests {
         assert_eq!(count, 2);
         assert_eq!(result, None);
     }
-    
+
     #[test]
     fn other_keys_are_not_resolved() {
         // 0x60 已在小键盘范围内，换成同样不该产生字符的 F1 / 回车 / Caps Lock。
@@ -110,7 +110,7 @@ mod tests {
             assert_eq!(character(vk), None);
         }
     }
-    
+
     #[test]
     fn event_reads_thread_layout_and_keyboard_state() {
         use crate::com::key::event::to_key_event;
@@ -121,7 +121,7 @@ mod tests {
         };
         use windows::Win32::UI::TextServices::ITfKeyEventSink;
         use windows::core::ComObject;
-        
+
         let original_layout = unsafe { GetKeyboardLayout(0) };
         let mut original_state = [0; 256];
         unsafe { GetKeyboardState(&mut original_state) }.unwrap();
