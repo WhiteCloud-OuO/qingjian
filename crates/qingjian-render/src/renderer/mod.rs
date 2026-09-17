@@ -195,7 +195,11 @@ impl Renderer {
         };
         let width = top_width.max(body_width);
         (
-            width + m.padding() * 2.0,
+            if width + m.padding() * 2.0 > 200.0 {
+                width + m.padding() * 2.0
+            } else {
+                200.0
+            },
             top_height + body_height + m.padding() * 2.0,
         )
     }

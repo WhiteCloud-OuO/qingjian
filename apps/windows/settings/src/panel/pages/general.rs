@@ -11,14 +11,14 @@ pub(crate) const LANGUAGES: [(&str, &str); 4] = [
     ("英语", "en"),
     ("日语", "ja"),
     ("西班牙语", "es"),
-    ("不显示译文", "off"),
+    ("不进行翻译", "off"),
 ];
 
 /// 双拼方案：界面名 + 配置写法（空串为全拼）。
 pub(crate) const SHUANGPIN: [(&str, &str); 5] = [
-    ("全拼（不启用双拼）", ""),
+    ("全拼", ""),
     ("小鹤双拼", "xiaohe"),
-    ("自然码", "ziranma"),
+    ("自然码双拼", "ziranma"),
     ("微软双拼", "microsoft"),
     ("搜狗双拼", "sogou"),
 ];
@@ -39,8 +39,8 @@ pub(crate) fn view(settings: &Settings, context: &mut ViewContext<Settings>) -> 
     let english_off = !settings.config.apps.english_candidates_off.is_empty();
     let rows = [
         field(
-            "学习语言",
-            "候选词右侧显示哪种语言的译词，只列出装了释义表的语言；「不显示译文」同时关掉生词标记与释义兜底。",
+            "候选项翻译语言",
+            "候选词右侧显示对应语言的译词。",
             string_combo(
                 &LANGUAGES,
                 &g.learning_language,
@@ -57,7 +57,7 @@ pub(crate) fn view(settings: &Settings, context: &mut ViewContext<Settings>) -> 
                 .on_value_changed(context.callback(Message::PageSize)),
         ),
         field(
-            "双拼",
+            "输入方式",
             "开双拼后 v、u、i 是音节键，表达式与问字模式改用 Shift+V、Shift+U 进；微软、搜狗方案的 ; 键是 ing。",
             string_combo(
                 &SHUANGPIN,
