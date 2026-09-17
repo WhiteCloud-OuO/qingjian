@@ -5,10 +5,7 @@ use windows::Win32::UI::Input::KeyboardAndMouse::{
 };
 
 pub(super) fn character(vk: u32) -> Option<char> {
-    // 保持原有键码范围：主键盘数字、小键盘数字与运算符（VK_NUMPAD0–VK_DIVIDE）、OEM 标点和空格。
-    // 小键盘不算进来的话 resolve 不会被调用、KeyEvent.character 是 None，TSF 侧 would_eat
-    // 判它不归输入法管直接放行：V 模式（表达式模式）里敲小键盘数字 / 运算符，键跑进应用、
-    // 缓冲区里那个 v 还留着。
+    // 主键盘数字、小键盘数字与运算符（不解出字符的键 would_eat 会直接放行给应用）、OEM 标点和空格。
     if !matches!(vk, 0x30..=0x39 | 0x60..=0x6F | 0xBA..=0xC0 | 0xDB..=0xDE | 0x20) {
         return None;
     }
@@ -105,7 +102,6 @@ mod tests {
 
     #[test]
     fn other_keys_are_not_resolved() {
-        // 0x60 已在小键盘范围内，换成同样不该产生字符的 F1 / 回车 / Caps Lock。
         for vk in [0x41, 0x70, 0x0D, 0x14] {
             assert_eq!(character(vk), None);
         }
