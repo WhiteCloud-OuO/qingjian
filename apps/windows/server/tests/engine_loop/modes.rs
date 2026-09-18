@@ -20,6 +20,10 @@ fn chinese_punctuation_is_full_width_only_when_not_composing() {
     assert_eq!(press(&mut router, period).0, KeyOutcome::Passthrough);
     assert_eq!(press(&mut router, period).1, Some("。".to_owned()));
 
+    // 小键盘的点不跟在数字后面也保持半角。
+    let keypad_period = KeyEvent::new(0x6E, Some('.'), Default::default());
+    assert_eq!(press(&mut router, keypad_period).0, KeyOutcome::Passthrough);
+
     // 组句中：标点进英文直输段，不转。
     type_letters(&mut router, "ni");
     let (outcome, commit, frame) = press(&mut router, comma);
@@ -230,7 +234,7 @@ fn bare_question_mark_is_half_width_when_full_width_is_off() {
 #[test]
 fn shuangpin_semicolon_stays_in_buffer_in_question_mode() {
     let mut router = router_asking_with(RouterConfig {
-        shuangpin: Some(ShuangpinScheme::Microsoft),
+        scheme: Scheme::Shuangpin(ShuangpinScheme::Microsoft),
         ..RouterConfig::default()
     });
     // 微软双拼的 `;` 是 ing 键：问字模式下末尾有落单声母时进缓冲区，而不是把候选上屏。
@@ -245,7 +249,7 @@ fn shuangpin_semicolon_stays_in_buffer_in_question_mode() {
 #[test]
 fn shuangpin_enters_modes_with_shifted_letters() {
     let mut router = router_with(RouterConfig {
-        shuangpin: Some(ShuangpinScheme::Xiaohe),
+        scheme: Scheme::Shuangpin(ShuangpinScheme::Xiaohe),
         ..RouterConfig::default()
     });
     // Shift+V 进表达式：数字和运算符进缓冲区，空格上屏结果。
@@ -318,4 +322,27 @@ fn punctuation_toggle_is_remembered_per_mode() {
     type_english(&mut router, "hello");
     let (_, commit, _) = press(&mut router, english_comma);
     assert_eq!(commit.as_deref(), Some("hello，"));
+}
+
+/// 中文模式下的 Shift 大写：缺省交给应用（与以前一致），配成 compose 才收进组句缓冲区。
+#[test]
+fn shift_letters_follow_the_configuration() {
+    // 缺省 `shift_letter = "passthrough"`：临时打英文，字母归应用
+    let mut router = router();
+    let (outcome, commit, _) = press(&mut router, letter_with('P', SHIFT));
+    assert_eq!(outcome, KeyOutcome::Passthrough);
+    assert_eq!(commit, None);
+
+    // 配成 compose：进组句、按小写参与匹配，拼音行按敲的样子显示，回车原样上屏时还原大写
+    let config = RouterConfig {
+        shift_letter_compose: true,
+        ..RouterConfig::default()
+    };
+    let mut router = router_with(config);
+    type_letters(&mut router, "ni");
+    let (outcome, commit, frame) = press(&mut router, letter_with('A', SHIFT));
+    assert_eq!((outcome, commit.as_deref()), (KeyOutcome::Consumed, None));
+    assert_eq!(preedit(&frame), "niA");
+    let (_, commit, _) = press(&mut router, function_key(0x0D));
+    assert_eq!(commit.as_deref(), Some("niA"));
 }

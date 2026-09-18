@@ -9,15 +9,21 @@ pub(crate) enum Message {
     // 通用页
     LearningLanguage(Option<usize>),
     PageSize(Option<f64>),
-    Shuangpin(Option<usize>),
-    Zhuyin(bool),
+    Scheme(Option<usize>),
+    Wubi(bool),
     Traditional(bool),
     EnglishCandidates(bool),
     ChineseFirst(bool),
+    /// 中文模式下 Shift+字母：交给应用（缺省）还是进组句缓冲区。
+    ShiftLetter(Option<usize>),
     FullWidthPunctuation(bool),
     EnglishFullWidthPunctuation(bool),
     /// 开=写入平台默认名单，关=清空。
     EnglishOffInApps(bool),
+    /// 中英切换键（[`qingjian_platform::SwitchKey`] 的下标）。
+    SwitchMode(Option<usize>),
+    /// 内置英文模式总开关。
+    EnglishMode(bool),
 
     // 候选窗口页
     Theme(Option<usize>),

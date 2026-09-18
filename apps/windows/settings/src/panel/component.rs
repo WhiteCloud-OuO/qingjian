@@ -2,7 +2,7 @@
 
 use qingjian_platform::{
     CandidateRenderer, Config, DEFAULT_ENGLISH_CANDIDATES_OFF_WINDOWS, LayoutMode, LogLevel,
-    PreeditMode, ThemeMode,
+    PreeditMode, ShiftLetter, ThemeMode,
 };
 use windows_reactor::*;
 
@@ -43,10 +43,10 @@ impl Component for Settings {
                 let size = (value.round() as i64).clamp(1, 9);
                 self.save("general", "page_size", size);
             }
-            Message::Shuangpin(Some(i)) if i < general::SHUANGPIN.len() => {
-                self.save("general", "shuangpin", general::SHUANGPIN[i].1);
+            Message::Scheme(Some(i)) if i < general::SCHEMES.len() => {
+                self.save("general", "scheme", general::SCHEMES[i].1);
             }
-            Message::Zhuyin(on) => self.save("general", "zhuyin", on),
+            Message::Wubi(on) => self.save("general", "wubi", if on { "wubi86" } else { "" }),
             Message::Traditional(on) => self.save("general", "traditional", on),
             Message::EnglishCandidates(on) => self.save("general", "english_candidates", on),
             Message::ChineseFirst(on) => self.save("general", "chinese_first", on),
@@ -67,6 +67,10 @@ impl Component for Settings {
                 };
                 self.save_array("apps", "english_candidates_off", &list);
             }
+            Message::SwitchMode(Some(i)) if i < general::SWITCH_KEYS.len() => {
+                self.save("shortcut", "switch_mode", general::SWITCH_KEYS[i].1);
+            }
+            Message::EnglishMode(on) => self.save("general", "english_mode", on),
 
             // 候选窗口页
             Message::Theme(Some(i)) if i < ThemeMode::ALL.len() => {
@@ -77,6 +81,9 @@ impl Component for Settings {
             }
             Message::Preedit(Some(i)) if i < PreeditMode::ALL.len() => {
                 self.save("general", "preedit", PreeditMode::ALL[i].key());
+            }
+            Message::ShiftLetter(Some(i)) if i < ShiftLetter::ALL.len() => {
+                self.save("general", "shift_letter", ShiftLetter::ALL[i].key());
             }
             Message::Renderer(Some(i)) if i < CandidateRenderer::ALL.len() => {
                 self.save("general", "renderer", CandidateRenderer::ALL[i].key());

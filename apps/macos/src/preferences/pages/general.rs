@@ -1,10 +1,10 @@
-//! 「通用」页：学习语言、每页候选数、双拼方案、英文模式候选。
+//! 「通用」页：学习语言、每页候选数、输入方案、英文模式候选。
 
 use objc2::MainThreadMarker;
 use objc2::rc::Retained;
 use objc2_app_kit::{NSButton, NSPopUpButton};
-use qingjian_core::{Language, ShuangpinScheme};
-use qingjian_platform::{Config, MAX_PAGE_SIZE};
+use qingjian_core::Language;
+use qingjian_platform::{Config, MAX_PAGE_SIZE, Scheme};
 
 use crate::preferences::controls::{
     checkbox, language_label, note, row_checkbox, row_popup, select, set_checked,
@@ -20,8 +20,11 @@ pub struct GeneralPage {
     /// 每页候选数。
     page_size: Retained<NSPopUpButton>,
 
-    /// 双拼方案（第 0 项是关）。
-    shuangpin: Retained<NSPopUpButton>,
+    /// 拼音方案（按 `Scheme::ALL` 的顺序）。
+    scheme: Retained<NSPopUpButton>,
+
+    /// 五笔（86 版形码）；与拼音方案同时开着就是混输。
+    wubi: Retained<NSButton>,
 
     /// 繁体输出模式。
     traditional: Retained<NSButton>,
@@ -34,6 +37,9 @@ pub struct GeneralPage {
 
     /// 中英混输时中文候选排在英文词前。
     chinese_first: Retained<NSButton>,
+
+    /// 中文模式下 Shift+字母进组句。
+    shift_letter: Retained<NSButton>,
 
     /// 学习语言弹出菜单里各项对应的语言。
     languages: Vec<Language>,
@@ -78,21 +84,26 @@ impl GeneralPage {
             Setting::PageSize,
             target,
         );
-        let shuangpin_titles: Vec<String> = std::iter::once("关（全拼）".to_owned())
-            .chain(ShuangpinScheme::ALL.iter().map(|s| s.label().to_owned()))
-            .collect();
-        let shuangpin = row_popup(
+        let scheme_titles: Vec<String> = Scheme::ALL.iter().map(|s| s.label().to_owned()).collect();
+        let scheme = row_popup(
             layout,
             mtm,
-            "双拼",
-            &shuangpin_titles,
-            Setting::Shuangpin,
+            "拼音方案",
+            &scheme_titles,
+            Setting::Scheme,
             target,
         );
         note(
             layout,
             mtm,
-            "开双拼后 v、u、i 是音节键，表达式与问字模式改用 Shift+V、Shift+U 进；微软、搜狗方案的 ; 键是 ing。",
+            "全拼、五套双拼、大千注音，或关（只用下面的五笔）。双拼下 v、u、i 是音节键，表达式与问字模式改用 Shift+V、Shift+U 进（微软、搜狗方案的 ; 键是 ing）；注音下 v、u、i 也是按键，只能用 ? 开头进。",
+        );
+        let wubi = checkbox(mtm, "五笔（86 版）", Setting::Wubi, target);
+        row_checkbox(layout, &wubi);
+        note(
+            layout,
+            mtm,
+            "与拼音方案同时开着就是混输：编码打全的五笔词在前，打不出的字直接打拼音。单用五笔请把拼音方案关掉；第 5 个字母起五笔查不到东西，自动只剩拼音。",
         );
         let punctuation = row_popup(
             layout,
@@ -145,14 +156,28 @@ impl GeneralPage {
             mtm,
             "勾上后整段输入是英文词时（hello、key）英文词排第二，空格上屏的仍是中文；不勾（缺省）拼音不成立的输入英文词排第一。",
         );
+        let shift_letter = checkbox(
+            mtm,
+            "输入拼音时按住 Shift 的字母也进组句",
+            Setting::ShiftLetter,
+            target,
+        );
+        row_checkbox(layout, &shift_letter);
+        note(
+            layout,
+            mtm,
+            "不勾（缺省）是临时打英文：拼音先上屏，这个大写字母原样交给应用。勾上后它进拼音缓冲区、按小写参与匹配，Cpan 与 cpan 一样能出「C盘」；回车原样上屏时保留大写。",
+        );
         Self {
             learning_language,
             page_size,
-            shuangpin,
+            scheme,
+            wubi,
             traditional,
             english,
             english_off_in_apps,
             chinese_first,
+            shift_letter,
             languages: languages.to_vec(),
             punctuation,
         }
@@ -176,14 +201,15 @@ impl GeneralPage {
         );
         select(&self.page_size, Some(general.page_size() - 1));
         select(
-            &self.shuangpin,
-            Some(general.shuangpin().map_or(0, |scheme| {
-                ShuangpinScheme::ALL
+            &self.scheme,
+            Some(
+                Scheme::ALL
                     .iter()
-                    .position(|s| *s == scheme)
-                    .map_or(0, |i| i + 1)
-            })),
+                    .position(|s| *s == general.scheme())
+                    .unwrap_or(0),
+            ),
         );
+        set_checked(&self.wubi, general.wubi());
         set_checked(&self.traditional, general.traditional);
         set_checked(&self.english, general.english_candidates);
         set_checked(
@@ -193,5 +219,6 @@ impl GeneralPage {
         self.english_off_in_apps
             .setEnabled(general.english_candidates);
         set_checked(&self.chinese_first, general.chinese_first);
+        set_checked(&self.shift_letter, general.shift_letter.compose());
     }
 }

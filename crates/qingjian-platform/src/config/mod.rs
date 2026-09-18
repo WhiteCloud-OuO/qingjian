@@ -8,8 +8,11 @@ mod log_level;
 mod model;
 mod modifiers;
 mod preedit_mode;
+mod scheme;
+mod shift_letter;
 mod shortcut;
 mod status_bar;
+mod switch_key;
 mod theme_mode;
 
 use std::path::Path;
@@ -22,8 +25,8 @@ use toml_edit::DocumentMut;
 use crate::error::ConfigError;
 
 pub use apps::{
-    AppsConfig, DEFAULT_ENGLISH_CANDIDATES_OFF, DEFAULT_ENGLISH_CANDIDATES_OFF_MACOS,
-    DEFAULT_ENGLISH_CANDIDATES_OFF_WINDOWS,
+    AppsConfig, DEFAULT_ENGLISH_CANDIDATES_OFF, DEFAULT_ENGLISH_CANDIDATES_OFF_LINUX,
+    DEFAULT_ENGLISH_CANDIDATES_OFF_MACOS, DEFAULT_ENGLISH_CANDIDATES_OFF_WINDOWS,
 };
 pub use candidate_renderer::CandidateRenderer;
 pub use dictionaries::{DEFAULT_DOMAINS, DictionariesConfig};
@@ -36,8 +39,11 @@ pub use log_level::LogLevel;
 pub use model::LocalModelConfig;
 pub use modifiers::Modifiers;
 pub use preedit_mode::PreeditMode;
+pub use scheme::{Scheme, scheme_label};
+pub use shift_letter::ShiftLetter;
 pub use shortcut::ShortcutConfig;
 pub use status_bar::StatusBarConfig;
+pub use switch_key::SwitchKey;
 pub use theme_mode::ThemeMode;
 
 /// 用户配置文件（TOML）。所有平台同一份格式，缺省值全部在各分节的 `Default` 里。
@@ -83,9 +89,26 @@ fn deserialize_phrases<'de, D: serde::Deserializer<'de>>(
     Ok(phrases)
 }
 
+/// 模板的 `[apps]` 一节（Linux）：应用按 fcitx5 认到的名字（X11 是 WM_CLASS，Wayland 是 app_id）。
+/// 名单要与 [`DEFAULT_ENGLISH_CANDIDATES_OFF`] 一致，测试 `template_parses_to_defaults` 会核对。
+#[cfg(not(any(windows, target_os = "macos")))]
+macro_rules! template_apps {
+    () => {
+        r#"[apps]
+# 按应用改行为，条目是 fcitx5 认到的应用名（X11 是 WM_CLASS，Wayland 是 app_id；`*` 结尾按前缀匹配，不区分大小写）
+# 英文模式下不给候选的应用：终端与代码编辑器里候选窗口会挡住应用自己的补全，vim 里 Tab 和方向键也另有含义。设成 [] 就处处都给
+english_candidates_off = [
+  "konsole", "org.kde.konsole", "yakuake", "gnome-terminal-server", "org.gnome.terminal", "xterm",
+  "alacritty", "kitty", "foot", "wezterm", "org.wezfurlong.wezterm", "com.mitchellh.ghostty", "tilix", "xfce4-terminal",
+  "code", "code-oss", "codium", "code-url-handler", "cursor", "jetbrains-*", "dev.zed.zed", "sublime_text", "neovide",
+]
+"#
+    };
+}
+
 /// 模板的 `[apps]` 一节（macOS）：应用按 bundle identifier 认。名单要与 [`DEFAULT_ENGLISH_CANDIDATES_OFF`] 一致，
 /// 测试 `template_parses_to_defaults` 会核对。用宏而不是常量，是因为 `concat!` 只收字面量。
-#[cfg(not(windows))]
+#[cfg(target_os = "macos")]
 macro_rules! template_apps {
     () => {
         r#"[apps]
@@ -122,7 +145,10 @@ english_candidates_off = [
 #[cfg(not(windows))]
 macro_rules! template_shortcut_keys {
     () => {
-        r#"# 数字键配这些修饰键上屏候选的译词：translation 第一个译词，translation_second 第二个（候选右侧有两个译词时）
+        r#"# 中 / 英模式切换键：单击这个修饰键在中英之间翻转。shift 单击 (缺省, 与微软拼音一致) / control 单击 / none 不切换。
+# macOS 的切换键是 Caps Lock（系统级），本项不生效
+switch_mode = "shift"
+# 数字键配这些修饰键上屏候选的译词：translation 第一个译词，translation_second 第二个（候选右侧有两个译词时）
 # 任意修饰键组合（option / shift / control / command 用 + 连），偏好设置里点按钮录制；别用 control+数字（系统切桌面）和 command+数字（应用切标签页）
 translation = "option"
 translation_second = "shift+option"
@@ -139,11 +165,15 @@ delete_candidate = "shift"
 #[cfg(windows)]
 macro_rules! template_shortcut_keys {
     () => {
-        r#"# 数字键配这些修饰键上屏候选的译词：translation 第一个译词，translation_second 第二个（候选右侧有两个译词时）
+        r#"# 中 / 英模式切换键：单击这个修饰键在中英之间翻转，不用组合。
+# shift 单击（缺省，与微软拼音一致；打字时容易误触 Shift 的话改成 control 单击或 none 不切换）
+# ctrl+space 是组合键；若系统把「输入法/非输入法切换」也绑在它上面会抢先，需先在 Windows 语言设置里关掉
+switch_mode = "shift"
+# 数字键配这些修饰键上屏候选的译词：translation 第一个译词，translation_second 第二个（候选右侧有两个译词时）
 # 任意修饰键组合（alt / shift / ctrl / win 用 + 连）。Alt+数字会被 Windows 当菜单快捷键截走，缺省用 Ctrl；组句时才拦，不打字时照常放行给应用
 translation = "ctrl"
 translation_second = "shift+ctrl"
-# 把应用里选中的文字译成学习语言（要开着云服务）：Windows 上还没接
+# 把应用里选中的文字译成学习语言（要开着云服务）：译文先出现在候选窗口，回车替换选中的文字，Esc 保留原文
 translate_selection = "ctrl+alt+t"
 # 数字键配这些修饰键删掉候选：用户词（云端选过的、自动造的）整个删掉，词库里的词清掉对它的学习记录。组句中要打感叹号先把词上屏
 delete_candidate = "shift"
@@ -180,13 +210,24 @@ english_candidates = true
 traditional = false
 # 中文模式下整段输入是英文词时（hello / key）是否让中文候选排第一、英文词第二；缺省 false：拼音不像话的输入英文词排第一
 chinese_first = false
+# 中文模式下按住 Shift 敲的字母：passthrough 拼音原样上屏、字母交给应用（缺省，与以前一致）/ compose 收进组句
+# 缓冲区参与匹配，这样 Cpan 与 cpan 一样能出「C盘」。英文模式与英文直输段（no-Way）不受影响
+shift_letter = "passthrough"
+# 内置英文模式：开着时单击切换键（[shortcut] switch_mode）或 Caps Lock 亮着进英文模式
+# 关掉后青简保持中文模式，切换键与语言栏按钮都不再切过去；要打英文请用系统快捷键（Win+Space）切到别的输入法。只有 Windows 用，macOS 的中英切换是 Caps Lock
+english_mode = true
 # 中文模式下（没在组句时）敲的标点转全角：, . ? ! : ; ( ) 等，数字后面的 . 保持半角。Windows 上悬浮状态条的「，。」格可以点着切；macOS 在偏好设置中选择默认中文标点模式
 full_width_punctuation = true
 # 英文模式下的同一件事，中英各记一份，状态条切的是当前模式那份；只有 Windows 用
 english_full_width_punctuation = false
-# 双拼方案：留空为全拼；xiaohe 小鹤 / ziranma 自然码 / microsoft 微软 / sogou 搜狗 / xiaolang 小浪
-# 开着时非声母键按方案规则解析，表达式模式没有入口，问字只能靠 question_mark 打开后用 ? 进；微软、搜狗方案的 ; 键是 ing
-shuangpin = ""
+# 拼音方案：留空或 pinyin 为全拼 / xiaohe 小鹤双拼 / ziranma 自然码 / microsoft 微软双拼 / sogou 搜狗双拼 / xiaolang 小浪双拼 /
+# zhuyin 大千注音 / none 关（只用形码，见下面的 wubi）。
+# 双拼与注音下 v / u / i 都是按键，表达式模式没有入口，问字只能靠 question_mark 打开后用 ? 进；微软、搜狗方案的 ; 键是 ing
+scheme = ""
+# 五笔（86 版形码）：留空为关，wubi86 为开。**与上面的拼音方案同时开着就是混输**——
+# 两边都出候选，编码打全的五笔词在前、其次拼音（打不出的字直接打拼音）；候选旁的译文、生词记录与学习照常。
+# 只用五笔的话把 scheme 写成 none；第 5 个字母起五笔已经查不到东西，自动只剩拼音。
+wubi = ""
 # 日志级别：info 缺省 / debug 详细（会记录敲的拼音与上屏的文字，配合作者排查问题时再开）。日志在 ~/Library/Logs/Qingjian/
 log_level = "info"
 # 输入日志：每次上屏记一行到数据目录的 input-log.jsonl（敲的键、看到的候选、选了什么），只写在这台电脑上，不上传；
@@ -366,7 +407,7 @@ impl Config {
         };
         toml::from_str(&source).map_err(|source| ConfigError::Parse {
             path: path.to_owned(),
-            source,
+            source: Box::new(source),
         })
     }
 
@@ -396,7 +437,7 @@ impl Config {
         };
         let mut document: DocumentMut = source.parse().map_err(|source| ConfigError::Edit {
             path: path.to_owned(),
-            source,
+            source: Box::new(source),
         })?;
         // 分节不存在时先建成标准表，否则 toml_edit 会写成顶层的行内表 `predict = { enabled = true }`
         if !document.get(section).is_some_and(|item| item.is_table()) {
@@ -427,7 +468,7 @@ impl Config {
         };
         let mut document: DocumentMut = source.parse().map_err(|source| ConfigError::Edit {
             path: path.to_owned(),
-            source,
+            source: Box::new(source),
         })?;
         if !document.get(section).is_some_and(|item| item.is_table()) {
             document[section] = toml_edit::table();
@@ -509,7 +550,13 @@ mod tests {
         assert_eq!(config.general.log_level, LogLevel::Info);
         assert_eq!(config.shortcut.mode.expression, 'i');
         assert_eq!(config.shortcut.mode.question, 'u');
-        assert_eq!(config.shortcut.translation, Modifiers::OPTION);
+        // 译词修饰键缺省分平台（Windows 是 Ctrl 系，其余 Option 系，见 shortcut.rs），断言跟着 Default 走
+        assert_eq!(
+            config.shortcut.translation,
+            Config::default().shortcut.translation
+        );
+        assert_eq!(config.shortcut.switch_mode, SwitchKey::Shift);
+        assert!(config.general.english_mode);
     }
 
     #[test]
