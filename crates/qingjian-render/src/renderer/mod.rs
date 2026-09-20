@@ -5,6 +5,7 @@
 mod columns;
 mod horizontal;
 mod item;
+mod matrix;
 mod rendered;
 mod status;
 mod top_line;
@@ -106,6 +107,7 @@ impl Metrics<'_> {
             Tone::Gloss => self.theme.colors.gloss,
             Tone::Fresh => self.theme.colors.fresh,
             Tone::Faint => self.theme.colors.pos,
+            Tone::Code => self.theme.colors.gloss,
         }
     }
 
@@ -163,6 +165,9 @@ impl Renderer {
             Layout::Vertical => {
                 self.draw_vertical(&mut canvas, frame, &metrics, margin, y, content_width);
             }
+            Layout::Horizontal if frame.columns > 0 => {
+                self.draw_matrix(&mut canvas, frame, &metrics, margin, y, content_width);
+            }
             Layout::Horizontal => {
                 self.draw_horizontal(&mut canvas, frame, &metrics, margin, y, content_width);
             }
@@ -194,6 +199,7 @@ impl Renderer {
         let (top_width, top_height) = self.top_line_size(frame, m);
         let (body_width, body_height) = match layout {
             Layout::Vertical => self.vertical_size(frame, m),
+            Layout::Horizontal if frame.columns > 0 => self.matrix_size(frame, m),
             Layout::Horizontal => self.horizontal_size(frame, m),
         };
         let width = top_width.max(body_width) + m.padding() * 2.0;
@@ -261,7 +267,26 @@ impl Renderer {
             m.theme.colors.text
         };
         let style = m.style(m.theme.text_font, color);
-        self.draw_text(canvas, &row.text, &style, word_x, top);
+        word_x += self.draw_text(canvas, &row.text, &style, word_x, top);
+        if let Some(code) = &row.code {
+            let style = m.annotation_style(m.tone_color(Tone::Code));
+            self.draw_text(
+                canvas,
+                code,
+                &style,
+                word_x,
+                top + m.small_offset(text_height),
+            );
+        }
+    }
+
+    /// 候选词后面那段码的宽度；没有码是 0。
+    fn code_width(&mut self, row: &Row, m: &Metrics) -> f32 {
+        let Some(code) = &row.code else {
+            return 0.0;
+        };
+        let style = m.annotation_style(m.tone_color(Tone::Code));
+        self.measure(code, &style).width
     }
 
     fn fill_highlight(

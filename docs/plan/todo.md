@@ -50,6 +50,8 @@
 - [ ] 问字模式离线版：拆字表（IDS 数据）按部件查字，云端版已有
 - [ ] 双拼收尾：菜单栏增加方案切换
 - [ ] 双拼方案数据化：加方案不用改代码（放一张键位表就能用，与 #51 的方案导入一起定）；解码支持同码出多个读音——小浪的 `lk`（lai / lia）、`nm`（niang / nen）、`dk`（dai / dia）、`un`（en / eng）现在只解第一个，做完去掉 `every_syllable_round_trips` 里小浪的四个例外（#129）
+- [ ] 辅码（issue #8，设计见 [docs/design/aux-code.md](../design/aux-code.md)）：触发键（缺省 `;`，与「非拼音键进直输段 / 全角标点」排优先级）与逐键即筛、词级过滤、辅码态隐藏无码词；码表走 Rime yaml 导入（`columns` 必须解析、`import_tables` 跨文件合表、「有词无码」行要报警）；码表存**独立码索引**（两段式查询，别复用词库 Slot）；
+  原生表只带笔画（CNS11643 笔顺 + 大陆序覆盖表 `dict-convert stroke`，艹 3 / 辶 3 / 阝 2）；设置界面加「辅码」页（macOS 偏好设置 / Windows 设置程序：触发键、显示码、码表列表、导入）；第三方形码表（小鹤形 / 自然码形）不随包，走引导导入
 - [ ] 敲错边收尾：敲错四类代价与整段纠错代价 2026-09-12 已在冻结日志（12886 条可评）上扫过，都在峰上，不改（`docs/notes/constant-sweep.md`）；
   个人折扣上限（3）回放从零学分不出好坏，等 `user-typos.tsv` 能带进回放（`--user-dict`）再看；
   退格重打（组句内、跨上屏）已进输入日志 `retype` 事件（2026-09-12），攒够后先按 `docs/plan/model-eval.md` 的尺子算召回与误纠率，再决定喂不喂个人敲错表；
@@ -116,7 +118,7 @@
     模型单文件 `.qjm` 已做（2026-09-12，复用 `.qj` 容器 `Kind::Model`，`find_model` 先 `.qjm` 再三件套目录，`pack model` / `tools/release/pack-model.sh`，
     data Release 传 `model.qjm`，bundle.sh / qingjian.iss 只带一个文件），待 mac 与 box 真机各装一次验加载与重排；
     密码框已按 TSF 规范做（2026-09-12）：`KEYBOARD_DISABLED` compartment 整键放行不组句，`IS_PRIVATE` / 密码 / PIN 输入范围为私密（组句但不学不记不发云端，`ClientMessage::Privacy` → `Engine::set_private`），box 真机验过：Edge 密码框整键放行；InPrivate 网页文本框报 `IS_SEARCH` 不报 `IS_PRIVATE`，私密路径只靠单测覆盖；CI 两个 job 都从 `data` Release 取 `model.qjm`（已做）。
-- [ ] Linux IBus / Fcitx（Phase 5）；配置同步、跨平台词库
+- [ ] Linux Fcitx5 后续（默认面板与手动安装已实现）：native Wayland 验证、Server 自绘 / GNOME 位图、神经重排、自动启动与打包；配置同步、跨平台词库
 
 ## 四、其他输入方案
 
