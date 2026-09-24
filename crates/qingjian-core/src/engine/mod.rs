@@ -19,6 +19,7 @@ mod mode_keys;
 mod prediction;
 mod privacy;
 mod query;
+mod raw;
 mod rescoring;
 mod session;
 mod setup;
@@ -51,6 +52,7 @@ pub use prediction::{
 };
 
 pub use query::Query;
+pub use raw::RawPreedit;
 pub use session::EngineSession;
 pub use statistics::{BOOKS, Book, NoUsageMeter, Usage, UsageMeter, UsageSummary, book_scale};
 pub use timings::Timings;
@@ -238,6 +240,9 @@ pub struct Engine {
     /// 双拼方案，`None` 为全拼。开着时缓冲区里是双拼键，查词前先解成全拼（见 [`crate::shuangpin`]）。
     shuangpin: Option<Scheme>,
 
+    /// 双拼方案下 preedit 显示原始按键（如 `ljse`）还是展开成全拼（`lan'se`）。
+    shuangpin_raw_preedit: bool,
+
     /// 注音模式开关，開著時緩衝區裡是注音大千鍵位，查詞前先解成拼音（見 [`crate::zhuyin`]）。
     zhuyin: bool,
 
@@ -415,6 +420,7 @@ impl Engine {
             chain: CommitChain::default(),
             fuzzy: FuzzyRules::default(),
             shuangpin: None,
+            shuangpin_raw_preedit: false,
             zhuyin: false,
             code: None,
             phonetic: true,
